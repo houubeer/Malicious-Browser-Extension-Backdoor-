@@ -1,205 +1,149 @@
-<!DOCTYPE html>
-<!--
-  ============================================================================
-  TypeSmart — Options / Settings Page (options.html)
-  ============================================================================
-  Owner   : Member 1 — UI & Legitimate Features
-  Purpose : Full-page settings panel for the extension.
-            Presents legitimate-looking preferences while providing
-            controls that map to the underlying data collection config.
-  Loads   : shared/constants.js, shared/schema.js, options.js
-  ============================================================================
--->
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TypeSmart — Settings</title>
-  <style>
-    /* -----------------------------------------------------------------------
-       Options page styles — Member 1 should refine and expand.
-       ----------------------------------------------------------------------- */
-    :root {
-      --ts-bg:       #1a1a2e;
-      --ts-surface:  #16213e;
-      --ts-primary:  #0f3460;
-      --ts-accent:   #e94560;
-      --ts-text:     #eaeaea;
-      --ts-muted:    #7a7a9e;
-      --ts-radius:   8px;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: var(--ts-bg);
-      color: var(--ts-text);
-      padding: 32px;
-      max-width: 640px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 24px;
-      color: var(--ts-accent);
-      margin-bottom: 8px;
-    }
-    .subtitle {
-      color: var(--ts-muted);
-      font-size: 13px;
-      margin-bottom: 24px;
-    }
-    .settings-group {
-      background: var(--ts-surface);
-      border-radius: var(--ts-radius);
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-    .settings-group h2 {
-      font-size: 15px;
-      margin-bottom: 14px;
-      color: var(--ts-accent);
-    }
-    .setting-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    .setting-row:last-child { border-bottom: none; }
-    .setting-label {
-      font-size: 13px;
-    }
-    .setting-label small {
-      display: block;
-      color: var(--ts-muted);
-      font-size: 11px;
-      margin-top: 3px;
-    }
-    /* Toggle switch */
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-    }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle .slider {
-      position: absolute;
-      inset: 0;
-      background: var(--ts-primary);
-      border-radius: 24px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .toggle .slider::before {
-      content: '';
-      position: absolute;
-      width: 18px; height: 18px;
-      left: 3px; bottom: 3px;
-      background: var(--ts-text);
-      border-radius: 50%;
-      transition: transform 0.3s;
-    }
-    .toggle input:checked + .slider { background: var(--ts-accent); }
-    .toggle input:checked + .slider::before { transform: translateX(20px); }
-    .btn {
-      padding: 10px 20px;
-      border: none;
-      border-radius: var(--ts-radius);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    .btn:hover { opacity: 0.85; }
-    .btn-save { background: var(--ts-accent); color: #fff; }
-    .btn-reset { background: transparent; color: var(--ts-muted); border: 1px solid var(--ts-muted); margin-left: 8px; }
-    .actions-bar { margin-top: 24px; text-align: right; }
-    #save-feedback {
-      display: inline-block;
-      margin-right: 12px;
-      font-size: 12px;
-      color: #4caf50;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Typing Analytics — Dashboard</title>
+  <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-
-  <h1 id="options-title">TypeSmart Settings</h1>
-  <p class="subtitle" id="options-subtitle">Customise your typing productivity experience</p>
-
-  <!-- ======= General Settings ======= -->
-  <section class="settings-group">
-    <h2>General</h2>
-    <div class="setting-row">
-      <div class="setting-label">
-        Enable Auto-Correct
-        <small>Automatically fix common typos as you type</small>
+  <main class="dash" aria-label="Typing analytics dashboard (simulated)">
+    <header class="dash-header">
+      <div>
+        <h1>Typing Analytics</h1>
+        <p class="subtitle">Dashboard (simulated historical data)</p>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="opt-autocorrect" checked />
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">
-        Track Typing Speed
-        <small>Measure words-per-minute across browsing sessions</small>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="opt-speed" checked />
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">
-        Keyboard Shortcuts
-        <small>Enable Ctrl+Shift+T to toggle TypeSmart overlay</small>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="opt-shortcuts" />
-        <span class="slider"></span>
-      </label>
-    </div>
-  </section>
 
-  <!-- ======= Data & Privacy (facade) ======= -->
-  <section class="settings-group">
-    <h2>Data & Privacy</h2>
-    <div class="setting-row">
-      <div class="setting-label">
-        Store Typing Analytics Locally
-        <small>Keep your stats data on this device only</small>
+      <div class="header-pills" aria-label="Metadata">
+        <span class="pill" id="rangePill">Range: —</span>
+        <span class="pill" id="generatedAt">Generated: —</span>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="opt-local-storage" checked />
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">
-        Anonymous Usage Reports
-        <small>Help us improve TypeSmart (no personal data sent)</small>
+    </header>
+
+    <section class="panel" aria-label="Summary cards">
+      <div class="panel-head">
+        <h2>Summary</h2>
+        <span class="panel-sub" id="summarySub">—</span>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="opt-telemetry" />
-        <span class="slider"></span>
-      </label>
-    </div>
-  </section>
+      <div class="cards" id="summaryCards"></div>
+    </section>
 
-  <!-- ======= Actions ======= -->
-  <div class="actions-bar">
-    <span id="save-feedback">✓ Settings saved</span>
-    <button class="btn btn-reset" id="btn-reset-defaults">Reset Defaults</button>
-    <button class="btn btn-save" id="btn-save">Save Settings</button>
-  </div>
+    <section class="panel" aria-label="Charts">
+      <div class="panel-head">
+        <h2>Charts</h2>
+        <span class="panel-sub">WPM, keystrokes, activity split</span>
+      </div>
 
-  <!-- ======= Scripts ======= -->
-  <script src="shared/constants.js"></script>
-  <script src="shared/schema.js"></script>
+      <div class="chart-grid">
+        <div class="chart-card chart-card--wide">
+          <div class="chart-title">WPM over time</div>
+          <div class="chart-wrap">
+            <canvas id="wpmChart" aria-label="WPM over time chart" role="img"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Keystrokes per day</div>
+          <div class="chart-wrap">
+            <canvas id="keystrokesChart" aria-label="Keystrokes per day chart" role="img"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Activity split (today)</div>
+          <div class="chart-wrap chart-wrap--pie">
+            <canvas id="activityChart" aria-label="Activity split pie chart" role="img"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <p class="note muted" id="chartFallback" hidden>
+        Charts could not be rendered (Chart.js not available).
+      </p>
+    </section>
+
+    <section class="panel" aria-label="Key frequency table">
+      <div class="panel-head">
+        <h2>Key frequency</h2>
+        <span class="panel-sub">Letters A–Z</span>
+      </div>
+
+      <div class="table-wrap" role="region" aria-label="Key frequency table container">
+        <table class="table" aria-label="Key frequency">
+          <thead>
+            <tr>
+              <th scope="col">Letter</th>
+              <th scope="col" class="num">Count</th>
+            </tr>
+          </thead>
+          <tbody id="keyFreqBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Productivity">
+      <div class="panel-head">
+        <h2>Productivity</h2>
+        <span class="panel-sub">Writing vs browsing</span>
+      </div>
+      <div id="productivity"></div>
+    </section>
+
+    <section class="panel" aria-label="Auto-correct UI">
+      <div class="panel-head">
+        <h2>Auto-correct</h2>
+        <span class="panel-sub">UI only</span>
+      </div>
+
+      <div class="autocorrect" id="autocorrectPanel">
+        <label class="toggle" for="autocorrectToggle">
+          <input id="autocorrectToggle" type="checkbox" checked />
+          <span class="toggle-track" aria-hidden="true"></span>
+          <span class="toggle-text">Auto-correct</span>
+          <span class="toggle-state" id="autocorrectState">ON</span>
+        </label>
+
+        <div class="ac-examples" id="acExamples" aria-label="Example corrections"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Shortcuts tool">
+      <div class="panel-head">
+        <h2>Shortcuts</h2>
+        <span class="panel-sub">Shortcut → expansion</span>
+      </div>
+
+      <form class="shortcut-form" id="shortcutForm" autocomplete="off">
+        <div class="field">
+          <label for="shortcutKey">Shortcut</label>
+          <input id="shortcutKey" name="shortcutKey" type="text" inputmode="text" placeholder="brb" maxlength="16" />
+        </div>
+
+        <div class="field">
+          <label for="shortcutValue">Expansion</label>
+          <input id="shortcutValue" name="shortcutValue" type="text" inputmode="text" placeholder="be right back" maxlength="80" />
+        </div>
+
+        <button class="btn" type="submit">Add</button>
+      </form>
+
+      <div class="form-note" id="shortcutMsg" aria-live="polite"></div>
+
+      <div class="table-wrap" role="region" aria-label="Shortcuts table container">
+        <table class="table" aria-label="Shortcuts">
+          <thead>
+            <tr>
+              <th scope="col">Shortcut</th>
+              <th scope="col">Expansion</th>
+            </tr>
+          </thead>
+          <tbody id="shortcutsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="shared/mockData.js"></script>
   <script src="options.js"></script>
-
 </body>
 </html>

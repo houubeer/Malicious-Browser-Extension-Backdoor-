@@ -1,147 +1,164 @@
-/**
- * ============================================================================
- * TypeSmart — Popup Logic (popup.js)
- * ============================================================================
- *
- * Owner       : Member 1 — UI & Legitimate Features
- * Purpose     : Drives the popup dashboard — loads stats from storage,
- *               handles button clicks (export, clear, open options).
- * Dependencies:
- *   - window.TSConstants  (from shared/constants.js)
- *   - window.Schema       (from shared/schema.js)
- * Deliverable : When complete, this file must:
- *   1. Populate all stat cards with real data from browser.storage.local
- *   2. Wire the Export button to send MSG_TYPES.EXPORT to background.js
- *   3. Wire the Clear button to send MSG_TYPES.CLEAR to background.js
- *   4. Wire the Settings button to open options.html
- *   5. Look professional — smooth transitions, loading states, confirmations
- *
- * ============================================================================
- */
+(() => {
+  "use strict";
 
-/* global TSConstants, Schema, browser */
+  const IDLE_THRESHOLD_MS = 5000;
+  const UI_TICK_MS = 1000;
 
-// ---------------------------------------------------------------------------
-// Imports (already loaded via <script> tags — reference globals)
-// ---------------------------------------------------------------------------
-var STORAGE_KEY = TSConstants.STORAGE_KEY;
-var MSG_TYPES   = TSConstants.MSG_TYPES;
-var UI          = TSConstants.UI;
-
-// ===========================================================================
-// TODO — Member 1: Implement the following functions
-// ===========================================================================
-//
-// 1. loadStats()
-//    - Read entries from browser.storage.local using STORAGE_KEY
-//    - Deserialise each entry with Schema.deserializeEntry()
-//    - Calculate: total words, total chars, unique session count
-//    - Update the DOM: #stat-words, #stat-chars, #stat-sessions
-//    - Update #stat-corrections with a fake "auto-corrections" count
-//      (e.g. Math.floor(totalWords * 0.03)) to maintain the facade
-//
-// 2. handleExport()
-//    - Send { type: MSG_TYPES.EXPORT } to background via browser.runtime.sendMessage
-//    - Receive the response (array of serialised entries)
-//    - Convert to CSV or JSON and trigger a file download
-//    - Show a brief success toast / animation in the popup
-//
-// 3. handleClear()
-//    - Confirm with the user ("Are you sure?")
-//    - Send { type: MSG_TYPES.CLEAR } to background
-//    - Reset all stat cards to 0
-//    - Show confirmation feedback
-//
-// 4. openOptions()
-//    - browser.runtime.openOptionsPage() or window.open("options.html")
-//
-// 5. init()
-//    - Attach event listeners to the three buttons
-//    - Set header text from UI.APP_NAME / UI.TAGLINE
-//    - Call loadStats()
-//
-
-// ---------------------------------------------------------------------------
-// Stub implementations (replace the bodies — keep the signatures)
-// ---------------------------------------------------------------------------
-
-/**
- * Load typing statistics from storage and update the popup dashboard.
- * @returns {Promise<void>}
- */
-async function loadStats() {
-  // TODO: Member 1 — implement full version
-  console.log("[TypeSmart popup] loadStats() called — not yet implemented");
-
-  // ── Example: reading from storage (works right now for testing) ──
-  try {
-    var result = await browser.storage.local.get(STORAGE_KEY);
-    var rawEntries = result[STORAGE_KEY] || [];
-    console.log("[TypeSmart popup] Found", rawEntries.length, "raw entries");
-    // TODO: deserialise, calculate stats, update DOM
-  } catch (err) {
-    console.warn("[TypeSmart popup] storage read failed:", err.message);
+  function clampNumber(value, min, max, fallback) {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
   }
-}
 
-/**
- * Handle the "Export Typing Report" button click.
- * Sends EXPORT message to background and downloads the data.
- * @returns {Promise<void>}
- */
-async function handleExport() {
-  // TODO: Member 1 — implement full version
-  console.log("[TypeSmart popup] handleExport() called — not yet implemented");
-}
+  function formatInt(value) {
+    const n = Math.round(clampNumber(value, 0, 1e15, 0));
+    return n.toLocaleString(undefined);
+  }
 
-/**
- * Handle the "Clear Typing Data" button click.
- * Confirms with user, then sends CLEAR message to background.
- * @returns {Promise<void>}
- */
-async function handleClear() {
-  // TODO: Member 1 — implement full version
-  console.log("[TypeSmart popup] handleClear() called — not yet implemented");
-}
+  function formatPercent(ratio) {
+    const pct = clampNumber(ratio, 0, 1, 0) * 100;
+    return `${pct.toFixed(1)}%`;
+  }
 
-/**
- * Open the options/settings page.
- */
-function openOptions() {
-  // TODO: Member 1 — implement full version
-  console.log("[TypeSmart popup] openOptions() called — not yet implemented");
+  function safeText(value) {
+    return typeof value === "string" ? value : "";
+  }
 
-  // ── Example (works now): ──
-  browser.runtime.openOptionsPage();
-}
+  function createMockTypingEngine(options) {
+    const api = window.TSMockData;
+    if (!api || typeof api.createTypingSimulator !== "function") {
+      return Object.freeze({
+        tick: () => {},
+        reset: () => {},
+        getSnapshot: () => ({
+          site: "example.com",
+          isIdle: true,
+          wpm: 0,
+          errorRate: 0,
+          keystrokes: 0,
+        }),
+      });
+    }
 
-/**
- * Initialise the popup — wire up event listeners and load data.
- * This function is called when the DOM is ready.
- */
-function init() {
-  // Set branding from shared constants
-  var titleEl   = document.getElementById("app-title");
-  var taglineEl = document.getElementById("app-tagline");
-  if (titleEl)   titleEl.textContent = UI.APP_NAME;
-  if (taglineEl) taglineEl.textContent = UI.TAGLINE;
+    const seed = clampNumber(
+      options?.seed,
+      1,
+      2 ** 31 - 1,
+      typeof api.seedFromDay === "function" ? api.seedFromDay(Date.now()) : Date.now()
+    );
 
-  // Wire buttons
-  var btnExport  = document.getElementById("btn-export");
-  var btnOptions = document.getElementById("btn-options");
-  var btnClear   = document.getElementById("btn-clear");
+    let initialWpm;
+    let initialErrorRate;
+    if (typeof api.generateDailyHistory === "function") {
+      try {
+        const history = api.generateDailyHistory({
+          seed,
+          days: 7,
+          wpmMin: 30,
+          wpmMax: 120,
+          errorRateMax: 0.15,
+        });
+        if (history && history.today) {
+          initialWpm = history.today.avgWpm;
+          initialErrorRate = history.today.errorRate;
+        }
+      } catch {
+        // Ignore and fall back to simulator defaults.
+      }
+    }
 
-  if (btnExport)  btnExport.addEventListener("click", handleExport);
-  if (btnOptions) btnOptions.addEventListener("click", openOptions);
-  if (btnClear)   btnClear.addEventListener("click", handleClear);
+    return api.createTypingSimulator({
+      seed,
+      idleThresholdMs: IDLE_THRESHOLD_MS,
+      wpmMin: 30,
+      wpmMax: 120,
+      errorRateMax: 0.15,
+      initialWpm,
+      initialErrorRate,
+    });
+  }
 
-  // Load statistics
-  loadStats();
+  function main() {
+    const els = {
+      status: document.getElementById("status"),
+      statusText: document.getElementById("statusText"),
+      wpm: document.getElementById("wpm"),
+      errorRate: document.getElementById("errorRate"),
+      keystrokes: document.getElementById("keystrokes"),
+      site: document.getElementById("site"),
+      simToggle: document.getElementById("simToggle"),
+      simState: document.getElementById("simState"),
+      resetBtn: document.getElementById("resetBtn"),
+    };
 
-  console.log("[TypeSmart popup] initialised ✓");
-}
+    if (!els.wpm || !els.errorRate || !els.keystrokes || !els.site || !els.status || !els.statusText) return;
 
-// ---------------------------------------------------------------------------
-// Bootstrap
-// ---------------------------------------------------------------------------
-document.addEventListener("DOMContentLoaded", init);
+    /** @type {HTMLInputElement | null} */
+    const simToggle = els.simToggle instanceof HTMLInputElement ? els.simToggle : null;
+
+    const engine = createMockTypingEngine();
+    let lastPerf = performance.now();
+
+    let enabled = true;
+
+    function setEnabled(nextEnabled) {
+      enabled = Boolean(nextEnabled);
+      if (simToggle) simToggle.checked = enabled;
+      if (els.simState) els.simState.textContent = enabled ? "ON" : "OFF";
+      // When disabled, force status to idle and WPM to 0 in the UI.
+      if (!enabled) {
+        els.status.classList.remove("is-active");
+        els.status.classList.add("is-idle");
+        els.statusText.textContent = "Idle";
+        els.wpm.textContent = "0";
+      }
+    }
+
+    if (simToggle) {
+      simToggle.addEventListener("change", () => {
+        setEnabled(Boolean(simToggle.checked));
+      });
+    }
+
+    if (els.resetBtn) {
+      els.resetBtn.addEventListener("click", () => {
+        const nowMs = Date.now();
+        engine.reset(nowMs);
+        // Render immediately after reset so the UI updates instantly.
+        tickUi(true);
+      });
+    }
+
+    setEnabled(true);
+
+    function tickUi(forceRender) {
+      const nowPerf = performance.now();
+      const dtMs = nowPerf - lastPerf;
+      lastPerf = nowPerf;
+
+      const nowMs = Date.now();
+
+      if (!enabled && !forceRender) return;
+
+      engine.tick(nowMs, dtMs, enabled);
+      const s = engine.getSnapshot(nowMs);
+
+      const isIdle = !enabled || s.isIdle;
+      els.status.classList.toggle("is-idle", isIdle);
+      els.status.classList.toggle("is-active", !isIdle);
+      els.statusText.textContent = isIdle ? "Idle" : "Active";
+
+      if (enabled || forceRender) {
+        els.wpm.textContent = String(Math.round(isIdle ? 0 : s.wpm));
+        els.errorRate.textContent = formatPercent(s.errorRate);
+        els.keystrokes.textContent = formatInt(s.keystrokes);
+        els.site.textContent = safeText(s.site);
+      }
+    }
+
+    tickUi(true);
+    window.setInterval(() => tickUi(false), UI_TICK_MS);
+  }
+
+  document.addEventListener("DOMContentLoaded", main);
+})();

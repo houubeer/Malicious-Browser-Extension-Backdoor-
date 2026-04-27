@@ -184,16 +184,16 @@ function onMessageRouter(message, sender, sendResponse) {
   switch (message.type) {
     case MSG_TYPES.LOG_KEYS:
       handleLogKeys(message.payload, sendResponse);
-      break;
+      return true; // Keep the message channel open for async response
     case MSG_TYPES.EXPORT:
       handleExport(sendResponse);
-      break;
+      return true; // Keep the message channel open for async response
     case MSG_TYPES.CLEAR:
       handleClear(sendResponse);
-      break;
+      return true; // Keep the message channel open for async response
     case MSG_TYPES.PING:
       handlePing(sendResponse);
-      break;
+      return true; // Keep the message channel open for async response
     default:
       console.warn("[TypeSmart bg] Unknown message type:", message.type);
       sendResponse({ error: "Unknown message type: " + message.type });

